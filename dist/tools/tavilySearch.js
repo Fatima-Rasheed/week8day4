@@ -4,9 +4,8 @@ exports.tavilySearchTool = void 0;
 exports.resetSearchCount = resetSearchCount;
 const agents_1 = require("@openai/agents");
 const zod_1 = require("zod");
-// Tracks search count per run to enforce the 3-5 search limit
 let searchCount = 0;
-const MAX_SEARCHES = 5;
+const MAX_SEARCHES = 3;
 function resetSearchCount() {
     searchCount = 0;
 }
@@ -35,8 +34,8 @@ exports.tavilySearchTool = (0, agents_1.tool)({
             body: JSON.stringify({
                 api_key: apiKey,
                 query,
-                search_depth: "advanced",
-                max_results: 5,
+                search_depth: "basic",
+                max_results: 3,
                 include_answer: true,
             }),
         });
@@ -44,15 +43,13 @@ exports.tavilySearchTool = (0, agents_1.tool)({
             throw new Error(`Tavily API error: ${response.status} ${response.statusText}`);
         }
         const data = await response.json();
-        // Extract only what the research agent needs — no raw dump to user
         const findings = [];
         const sources = [];
-        if (data.answer) {
+        if (data.answer)
             findings.push(data.answer);
-        }
         for (const result of data.results ?? []) {
             if (result.content)
-                findings.push(result.content);
+                findings.push(result.content.slice(0, 400)); // truncate to ~400 chars
             if (result.url)
                 sources.push(result.url);
         }

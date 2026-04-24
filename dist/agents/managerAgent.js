@@ -2,36 +2,44 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.managerAgent = void 0;
 const agents_1 = require("@openai/agents");
+const zod_1 = require("zod");
 const researchAgent_1 = require("./researchAgent");
 const writerAgent_1 = require("./writerAgent");
 exports.managerAgent = new agents_1.Agent({
     name: "ManagerAgent",
-    model: "gpt-4o",
-    instructions: `You are the orchestrator of a multi-agent research system. You coordinate specialized agents to answer user queries thoroughly.
+    model: "llama-3.3-70b-versatile",
+    instructions: `You are the orchestrator of a multi-agent research system.
 
-Your workflow:
-1. Analyze the user query and identify what needs to be researched.
-2. Hand off to the ResearchAgent with a clear, focused research brief.
-3. Once research is complete, hand off to the WriterAgent with the full research findings.
-4. The WriterAgent produces the final report — you do NOT write it yourself.
+Your workflow is STRICTLY two steps — you must complete BOTH:
 
-Rules:
-- You NEVER call search tools directly.
-- You NEVER write the final report yourself.
-- You ALWAYS delegate: research → ResearchAgent, writing → WriterAgent.
-- When handing off to ResearchAgent, include the original query and specific subtopics to investigate.
-- When handing off to WriterAgent, pass the complete research output.
+STEP 1: Hand off to ResearchAgent with the user's query as the message.
 
-Start by handing off to the ResearchAgent.`,
+STEP 2: After ResearchAgent returns its findings, you MUST immediately hand off to WriterAgent.
+- Pass the COMPLETE research findings as the message to WriterAgent.
+- Do NOT summarize or modify the findings.
+- Do NOT write the report yourself.
+- Do NOT respond to the user directly.
+
+You are ONLY allowed to do two things:
+1. Call transfer_to_ResearchAgent (first)
+2. Call transfer_to_WriterAgent (second, with the full research output)
+
+If you have received research findings and have NOT yet called transfer_to_WriterAgent, you MUST call it now.`,
     handoffs: [
         (0, agents_1.handoff)(researchAgent_1.researchAgent, {
-            onHandoff: (ctx) => {
-                console.log("[Manager] Handing off to ResearchAgent...");
+            inputType: zod_1.z.object({
+                message: zod_1.z.string().describe("The research brief to pass to the research agent"),
+            }),
+            onHandoff: (_ctx, input) => {
+                console.log(`[Handoff] Manager → ResearchAgent: ${input?.message}`);
             },
         }),
         (0, agents_1.handoff)(writerAgent_1.writerAgent, {
-            onHandoff: (ctx) => {
-                console.log("[Manager] Handing off to WriterAgent...");
+            inputType: zod_1.z.object({
+                message: zod_1.z.string().describe("The complete research findings to pass to the writer agent"),
+            }),
+            onHandoff: (_ctx, _input) => {
+                console.log(`[Handoff] Manager → WriterAgent`);
             },
         }),
     ],
