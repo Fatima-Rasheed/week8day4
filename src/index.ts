@@ -3,8 +3,7 @@ import * as readline from "readline";
 import OpenAI from "openai";
 import { run, setDefaultOpenAIClient, setTracingDisabled } from "@openai/agents";
 import { resetSearchCount } from "./tools/tavilySearch";
-import { researchAgent } from "./agents/researchAgent";
-import { writerAgent } from "./agents/writerAgent";
+import { managerAgent } from "./agents/managerAgent";
 
 // "as any" bypasses the type mismatch between openai v5 instances.
 // Both packages use openai v5 — this works fine at runtime.
@@ -54,29 +53,19 @@ async function main() {
   resetSearchCount();
 
   try {
-    // Step 1 — Manager delegates to ResearchAgent
-    console.log("🤖 [Manager] Delegating to ResearchAgent...");
-    const researchResult = await run(researchAgent, query, {
-      maxTurns: 10,
+    // Single entry point — ManagerAgent orchestrates everything via handoffs
+    // Flow: ManagerAgent → handoff → ResearchAgent → handoff → WriterAgent
+    console.log("🤖 [Manager] Starting orchestration...\n");
+
+    const result = await run(managerAgent, query, {
+      maxTurns: 20,
       stream: false,
     });
-
-    const researchOutput = researchResult.finalOutput as string;
-    if (!researchOutput) throw new Error("ResearchAgent returned no findings.");
-
-    console.log("\n✅ [Manager] Research complete. Delegating to WriterAgent...");
-
-    // Step 2 — Manager delegates to WriterAgent
-    const writerResult = await run(
-      writerAgent,
-      `Research findings for query "${query}":\n\n${researchOutput}\n\nWrite a complete Markdown report based solely on these findings.`,
-      { maxTurns: 5, stream: false }
-    );
 
     console.log("\n╔════════════════════════════════════════╗");
     console.log("║              FINAL REPORT              ║");
     console.log("╚════════════════════════════════════════╝\n");
-    console.log(writerResult.finalOutput ?? "⚠️  No output was produced.");
+    console.log(result.finalOutput ?? "⚠️  No output was produced.");
 
   } catch (err: unknown) {
     if (err instanceof Error) {
